@@ -13,7 +13,25 @@
 #include <sys/stat.h>
 
 #define SERVER_PORT 5090
+#define BUFFER_SIZE 1024
 
+int checksum(char * filepath, int n)
+{
+    int sum =0 ;
+    char buffer[BUFFER_SIZE];
+    FILE *f = fopen(filepath, "r");
+    if (f == NULL) {
+        perror("Error opening file");
+        return -1;
+    }
+    while (fgets(buffer, BUFFER_SIZE, f) != NULL) {
+        int i;
+        for (i = 0; buffer[i] != '\0'; i++) {
+            sum += buffer[i];
+        }
+    }
+    return sum;
+}
 
 int main(int argc, char **argv)
 {
