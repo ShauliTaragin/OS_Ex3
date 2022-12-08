@@ -35,8 +35,8 @@ void checksum(char * buffer, int n)
     // fclose(f);
     // return sum;
 }
-int main()
-{
+
+void TCP(){
     char buffer[100];
     // printf("%d\n",checksum("100mb.txt",0));
     //  1. open a new listening socket.
@@ -45,7 +45,7 @@ int main()
     if (listeningSocket == -1)
     {
         perror("Error: Cannot open a new socket\n");
-        return -1;
+        return ;
     }
     //  2. Listening to incoming connections.
     struct sockaddr_in serverAddr;
@@ -56,7 +56,7 @@ int main()
     if (bind(listeningSocket, (struct sockaddr *)&serverAddr, sizeof(serverAddr)) == -1)
     {
         printf("Bind() has failed with the error code: %d", errno);
-        return -1;
+        return ;
     }
     if (listen(listeningSocket, 500) == -1) //500 is a Maximum size of queue connection requests
                                             //number of concurrent connections
@@ -76,7 +76,7 @@ int main()
         {
             printf("listen has failed\n");
             close(listeningSocket);
-            return -1;
+            return ;
         }
         char response[10] = "OK";
         write(clientSocket, response, sizeof(response));
@@ -116,4 +116,11 @@ int main()
     // stage 10 - close connection.
     close(listeningSocket);
     fclose(file);
+}
+int main(int argc, char **argv)
+{
+    if(strcmp(argv[1],"a")==0){//case for tcp
+        TCP();
+    }
+    return 1;
 }

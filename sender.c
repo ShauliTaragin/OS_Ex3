@@ -33,9 +33,7 @@ int checksum(char * filepath, int n)
     fclose(f);
     return sum;
 }
-
-int main(int argc, char **argv)
-{
+void TCP(){
     char *fileName = "shauli.txt";
     FILE *file;
     char buf[256];
@@ -46,7 +44,6 @@ int main(int argc, char **argv)
     if (senderSocket == -1)
     {
         perror("failed to open socket");
-        return -1;
     }
     length = sizeof(buf);
     // stage 2 - create connection with measure.
@@ -59,14 +56,14 @@ int main(int argc, char **argv)
     if (Connect == -1)
     {
         perror("error");
-        return -1;
+        return ;
     }
     // stage 3/5 - send file.
     file = fopen(fileName, "r");
     if (file == NULL)
     {
         fprintf(stderr, "Error in opening file");
-        return 1;
+        return;
     }
     char getReply[10];
     bzero(getReply, sizeof(getReply));
@@ -93,6 +90,12 @@ int main(int argc, char **argv)
     close(senderSocket);
 
     sleep(1);
-    
-    return 0;
+}
+
+int main(int argc, char **argv)
+{
+    if(strcmp(argv[1],"a")==0){//case for tcp
+        TCP();
+    }
+    return 1;
 }
