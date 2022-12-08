@@ -34,19 +34,20 @@ int checksum(char * filepath, int n)
     return sum;
 }
 void TCP(){
+    //prepare file to sent to receiver
     char *fileName = "shauli.txt";
     FILE *file;
     char buf[256];
     socklen_t length;
 
-    // stage 1 - open tcp socket.
+    //  open tcp socket.
     int senderSocket = socket(AF_INET, SOCK_STREAM, 0);
     if (senderSocket == -1)
     {
         perror("failed to open socket");
     }
     length = sizeof(buf);
-    // stage 2 - create connection with measure.
+    //  create connection with measure.
     struct sockaddr_in serverAddress;
     memset(&serverAddress, 0, sizeof(serverAddress));
     serverAddress.sin_family = AF_INET;
@@ -58,7 +59,7 @@ void TCP(){
         perror("error");
         return ;
     }
-    // stage 3/5 - send file.
+    //  send file.
     file = fopen(fileName, "r");
     if (file == NULL)
     {
@@ -73,8 +74,7 @@ void TCP(){
     char checkSum[20];
     sprintf(checkSum,"%d",checkSumAns);
     printf("checkSum Calculated ===>   %s\n",checkSum);
-    printf("%d\n",checksum("receiver.txt",0));
-    // int SendByte = send(senderSocket,checkSum,20,0);
+    int SendByte = send(senderSocket,checkSum,20,0);
     int b;
     int sum = 0;
     do
@@ -86,9 +86,9 @@ void TCP(){
     } while (!feof(file));
    
     sleep(1);
-    //6. Close connection.
+    //Close connection.
     close(senderSocket);
-
+    fclose(file);
     sleep(1);
 }
 
