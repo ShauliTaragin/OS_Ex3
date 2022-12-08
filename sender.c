@@ -30,12 +30,13 @@ int checksum(char * filepath, int n)
             sum += buffer[i];
         }
     }
+    fclose(f);
     return sum;
 }
 
 int main(int argc, char **argv)
 {
-    char *fileName = "200kb.txt";
+    char *fileName = "shauli.txt";
     FILE *file;
     char buf[256];
     socklen_t length;
@@ -51,7 +52,6 @@ int main(int argc, char **argv)
     // stage 2 - create connection with measure.
     struct sockaddr_in serverAddress;
     memset(&serverAddress, 0, sizeof(serverAddress));
-
     serverAddress.sin_family = AF_INET;
     serverAddress.sin_port = htons(SERVER_PORT); //network order
 
@@ -72,14 +72,22 @@ int main(int argc, char **argv)
     bzero(getReply, sizeof(getReply));
     read(senderSocket, getReply, sizeof(getReply));
     char sendbuffer[100];
+    int checkSumAns = checksum(fileName,0);
+    char checkSum[20];
+    sprintf(checkSum,"%d",checkSumAns);
+    printf("checkSum Calculated ===>   %s\n",checkSum);
+    printf("%d\n",checksum("receiver.txt",0));
+    // int SendByte = send(senderSocket,checkSum,20,0);
     int b;
     int sum = 0;
     do
     {
+        bzero(sendbuffer,sizeof(sendbuffer));
         b = fread(sendbuffer, 1, sizeof(sendbuffer), file);
         int SendByte = send(senderSocket, sendbuffer, b, 0);
         sum = SendByte + sum;
     } while (!feof(file));
+   
     sleep(1);
     //6. Close connection.
     close(senderSocket);

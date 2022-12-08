@@ -14,10 +14,31 @@
 #include <signal.h>
 
 #define SERVER_PORT 5090
-
+#define BUFFER_SIZE 1024
+// function to calculate the checksum
+static int sum = 0;
+void checksum(char * buffer, int n)
+{
+    // int sum =0 ;
+    // char buffer[BUFFER_SIZE];
+    // FILE *f = fopen(filepath, "r");
+    // if (f == NULL) {
+    //     perror("Error opening file");
+    //     return -1;
+    // }
+    // while (fgets(buffer, BUFFER_SIZE, f) != NULL) {
+    //     int i;
+        for (int i = 0; i<n; i++) {
+            sum += buffer[i];
+        }
+    
+    // fclose(f);
+    // return sum;
+}
 int main()
 {
     char buffer[100];
+    // printf("%d\n",checksum("100mb.txt",0));
     //  1. open a new listening socket.
     int listeningSocket = -1;
     listeningSocket = socket(AF_INET, SOCK_STREAM, 0);
@@ -60,17 +81,39 @@ int main()
         char response[10] = "OK";
         write(clientSocket, response, sizeof(response));
         gettimeofday(&begin, NULL);
+        char checkSum[20];
+        // int checkSumSize = recv(clientSocket,checkSum,20,0);
+        printf("checksum received  ===>  %s\n",checkSum);
+        
         int numOfBytes = -1;
+        FILE *file = fopen("receiver.txt","w");
         while (numOfBytes != 0)
         {
             // stage 4/7 - recieve the massege from the client.
+            bzero(buffer,sizeof(buffer));
             numOfBytes = recv(clientSocket, buffer, 100, 0);
+            char* buf = buffer;
+            buffer[100]='\0';
+            buffer[101]='\0';
+            // printf("%c",buffer[100]);
+            // printf("buffer ==> %s\n",buffer);
+            // break;
+            checksum(buffer,100);
+            fputs(buffer,file);
+            // printf("got => %s",buffer);
         }
+        // int checkSumAns = checksum("receiver.txt",0);
+        // char checkSumString[20];
+        // sprintf(checkSumString,"%d",checkSumAns);
+        printf("checksum  calculated  ===>  %d\n",sum);
         gettimeofday(&end, NULL);
         double time_current = (double)((end.tv_sec - begin.tv_sec) * 1000000 + end.tv_usec - begin.tv_usec) / 1000000;
         time += time_current;
         buffer[numOfBytes] = '\0';
+        printf("time took %f\n",time_current);
+
         sleep(1);
     // stage 10 - close connection.
     close(listeningSocket);
+    fclose(file);
 }
