@@ -45,7 +45,7 @@
 #define IP_PROTOCOL 0
 #define IP_ADDRESS "127.0.0.1" // localhost
 #define PORT_NO 15050
-#define NET_BUF_SIZE 32
+#define NET_BUF_SIZE 1000
 #define sendrecvflag 0
 #define nofile "File Not Found!"
 static int sum = 0;
@@ -599,9 +599,9 @@ void PIPE()
 }
 int main()
 {
-    TCP();
+    // TCP();
     // UDS_SOCK_STREAM();
-    // UDP();
+    UDP();
     // PIPE();
     return 0;
 }
