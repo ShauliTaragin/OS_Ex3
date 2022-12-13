@@ -1,2 +1,0 @@
-libc.so.6!__strcmp_avx2() (\build\glibc-sMfBJT\glibc-2.31\sysdeps\x86_64\multiarch\strcmp-avx2.S:101)
-main (Unknown Source:0)
