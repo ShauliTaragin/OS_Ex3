@@ -86,10 +86,10 @@ int sendFile(FILE *fp, char *buf, int s)
     }
     return 0;
 }
-// from geeksforgeeks https://www.geeksforgeeks.org/c-program-for-file-transfer-using-udp/
-// function to receive file
+
 int recvFile(char *buf, int s)
 {
+    // function to receive file
     int i;
     char ch;
     int flag = 0;
@@ -108,7 +108,7 @@ int recvFile(char *buf, int s)
         return 1;
     }
     return 0;
-} // from geeksforgeeks https://www.geeksforgeeks.org/c-program-for-file-transfer-using-udp/
+} 
 
 int checksumFile(char *filepath, int n)
 {
@@ -147,7 +147,7 @@ void TCP()
         sleep(1);
         char *fileName = "shauli.txt";
         FILE *file;
-        char buf[256];
+        char buf[1024];
         socklen_t length;
         int senderSocket = socket(AF_INET, SOCK_STREAM, 0);
         if (senderSocket == -1)
@@ -172,7 +172,7 @@ void TCP()
             fprintf(stderr, "Error in opening file");
             return;
         }
-        char sendbuffer[100];
+        char sendbuffer[1024];
         int checkSumAns = checksumFile(fileName, 0);
         char checkSum[20];
         sprintf(checkSum, "%d", checkSumAns);
@@ -193,7 +193,7 @@ void TCP()
     }
     else
     {
-        char buffer[100];
+        char buffer[1024];
         // printf("%d\n",checksum("100mb.txt",0));
         //  1. open a new listening socket.
         int listeningSocket = -1;
@@ -210,6 +210,7 @@ void TCP()
         serverAddr.sin_family = AF_INET;
         // inet_pton(AF_INET, "127.0.0.1", &(serverAddr.sin_addr));
         struct timeval begin, end;
+        gettimeofday(&begin, NULL);
         if (bind(listeningSocket, (struct sockaddr *)&serverAddr, sizeof(serverAddr)) < 0)
         {
             printf("Bind() has failed with the error code: %d", errno);
@@ -236,7 +237,7 @@ void TCP()
         }
         // char response[10] = "OK";
         // write(clientSocket, response, sizeof(response));
-        gettimeofday(&begin, NULL);
+        
         // receive checksum from sender
         char sum_recieved_string[20];
         bzero(sum_recieved_string, sizeof(sum_recieved_string));
@@ -252,7 +253,7 @@ void TCP()
             char *buf = buffer;
             // buffer[100] = '\0';
             // buffer[101] = '\0';
-            checksum(buffer, 100);
+            checksum(buffer, 1024);
             // fputs(buffer,file);
         }
         printf("checksum  calculated  ===>  %d\n", sum);
@@ -260,7 +261,13 @@ void TCP()
         double time_current = (double)((end.tv_sec - begin.tv_sec) * 1000000 + end.tv_usec - begin.tv_usec) / 1000000;
         time += time_current;
         buffer[numOfBytes] = '\0';
-        printf("time took %f\n", time_current);
+        //only if checksum is equal then print
+        if(sum==checksumFile("shauli.txt",0)){
+            printf("time took %f\n",time);
+        }
+        else{
+            printf("%d" , -1);
+        }
         sleep(1);
         // stage 10 - close connection.
         close(listeningSocket);
@@ -285,7 +292,7 @@ void UDS_SOCK_STREAM()
         int length;
         char *fileName = "shauli.txt";
         FILE *file;
-        char buf[256];
+        char buf[BUFFER_SIZE];
         int sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
         if (sockfd == -1)
         {
@@ -309,7 +316,7 @@ void UDS_SOCK_STREAM()
             return;
         }
         char getReply[10];
-        char sendbuffer[100];
+        char sendbuffer[BUFFER_SIZE];
         int checkSumAns = checksumFile(fileName, 0);
         char checkSum[10];
         sprintf(checkSum, "%d", checkSumAns);
@@ -335,7 +342,7 @@ void UDS_SOCK_STREAM()
     else
     {
         struct sockaddr_un sock_in, sock_out;
-        char buff[100];
+        char buff[BUFFER_SIZE];
         int listeningSocket = socket(AF_UNIX, SOCK_STREAM, 0);
         if (listeningSocket == -1)
         {
@@ -376,13 +383,19 @@ void UDS_SOCK_STREAM()
         {
             bzero(buff, sizeof(buff));
             numOfBytes = recv(clientSocket, buff, sizeof(buff), 0);
-            checksum(buff, 100);
+            checksum(buff, BUFFER_SIZE);
         }
         printf("checksum ====> %d\n", sum);
         gettimeofday(&end, NULL);
         double time_current = (double)((end.tv_sec - begin.tv_sec) * 1000000 + end.tv_usec - begin.tv_usec) / 1000000;
         time += time_current;
-        printf("time took %f\n", time_current);
+        //only if checksum is equal then print
+        if(sum==checksumFile("shauli.txt",0)){
+            printf("time took %f\n",time_current);
+        }
+        else{
+            printf("%d" , -1);
+        }
         close(clientSocket);
         close(listeningSocket);
         remove("echo_soc");
@@ -392,6 +405,7 @@ void UDS_SOCK_STREAM()
 }
 void UDP()
 {
+    // from geeksforgeeks https://www.geeksforgeeks.org/c-program-for-file-transfer-using-udp/
     printf("\nUDP\n");
     pid_t childpid;
     if ((childpid = fork()) == -1)
@@ -551,8 +565,8 @@ void PIPE()
     }
     if (childpid == 0)
     {
-        // sleep(1);
-        char sendbuffer[100];
+        sleep(1);
+        char sendbuffer[1000];
         char *fileName = "shauli.txt";
         FILE *file;
         file = fopen(fileName, "r");
@@ -580,7 +594,7 @@ void PIPE()
     {
         /* Parent process closes up output side of pipe */
         close(fd[1]);
-        char readbuffer[100];
+        char readbuffer[1000];
         do
         {
             /* Read in a string from the pipe */
@@ -593,15 +607,155 @@ void PIPE()
         double time_current = (double)((end.tv_sec - begin.tv_sec) * 1000000 + end.tv_usec - begin.tv_usec) / 1000000;
         time += time_current;
         printf("CheckSum calculated ===>  %d\n", sum);
-        printf("time took %f\n", time_current);
+        
+        if(sum==checksumFile("shauli.txt",0)){
+            printf("time took %f\n",time_current);
+        }
+        else{
+            printf("%d" , -1);
+        }
         sum=0;
     }
 }
+
+void UDS_Dgram_Socket(){
+    printf("\nUDS_Dgram_Socket\n");
+    pid_t childpid;
+    struct timeval begin, end;
+    double time = 0.0;
+    gettimeofday(&begin, NULL);
+    if ((childpid = fork()) == -1)
+    {
+        perror("fork");
+        exit(1);
+    }
+    if (childpid == 0)
+    {
+        sleep(1);
+        const char *socket_path = "./socket";
+        const int buffer_size = 1024;
+        char buffer[buffer_size];
+        struct sockaddr_un addr;
+        int fd,cl,rc;
+        char* filename = "shauli.txt";
+
+        if ((fd = socket(AF_UNIX, SOCK_STREAM, 0)) == -1) {
+            perror("socket error");
+            exit(-1);
+        }
+
+        memset(&addr, 0, sizeof(addr));
+        addr.sun_family = AF_UNIX;
+        strncpy(addr.sun_path, socket_path, sizeof(addr.sun_path)-1);
+
+        if (connect(fd, (struct sockaddr*)&addr, sizeof(addr)) == -1) {
+            perror("connect error");
+            exit(-1);
+        }
+
+        //checksum calculation and sending
+        int checkSumAns = checksumFile(filename,0);
+        char checkSum[20];
+        sprintf(checkSum,"%d",checkSumAns);
+        printf("checkSum Calculated ===>   %s\n",checkSum);
+        // int SendByte = write(fd, checkSum, 20);
+
+        // if (SendByte < 0) {
+        //     perror("write error");
+        //     exit(-1);
+        // }
+
+        FILE *file = fopen(filename, "r");
+        if (file == NULL) {
+            perror("error opening file");
+            exit(-1);
+        }
+
+        while ((cl = fread(buffer, 1, buffer_size, file)) > 0) {
+            rc = write(fd, buffer, cl);
+            if (rc < 0) {
+                perror("write error");
+                exit(-1);
+            }
+        }
+
+        fclose(file);
+        close(fd);
+        exit(0);
+    }
+    else{
+        const char *socket_path = "./socket";
+        const int buffer_size = 1024;
+        char buffer[buffer_size];
+        struct sockaddr_un addr;
+        int fd,cl,rc;
+
+
+        if ((fd = socket(AF_UNIX, SOCK_STREAM, 0)) == -1) {
+            perror("socket error");
+            exit(-1);
+        }
+
+        memset(&addr, 0, sizeof(addr));
+        addr.sun_family = AF_UNIX;
+        strncpy(addr.sun_path, socket_path, sizeof(addr.sun_path)-1);
+
+        unlink(socket_path);
+        if (bind(fd, (struct sockaddr*)&addr, sizeof(addr)) == -1) {
+            perror("bind error");
+            exit(-1);
+        }
+
+        if (listen(fd, 5) == -1) {
+            perror("listen error");
+            exit(-1);
+        }
+
+        if ((cl = accept(fd, NULL, NULL)) == -1) {
+            perror("accept error");
+        }
+        //receive checksum from sender
+        // char sum_recieved_string[20];
+        // bzero(sum_recieved_string,sizeof(sum_recieved_string));
+        // int checkSumSize = read(fd,sum_recieved_string,20);
+        // if(checkSumSize<1){
+        //     printf("error couldnt read check sum , got %d bytes ", checkSumSize);
+        // }
+        // printf("%s\n",sum_recieved_string);
+        // printf("checksum received  ===>  %s\n",sum_recieved_string);
+
+
+        while ((rc=read(cl, buffer, buffer_size)) > 0) {
+            checksum(buffer,rc);
+        }
+        char sum_in_string [20];
+        printf("checksum calculated receiver  ===>  %d\n",sum);
+        sprintf(sum_in_string,"%d",sum);
+        gettimeofday(&end, NULL);
+        double time_current = (double)((end.tv_sec - begin.tv_sec) * 1000000 + end.tv_usec - begin.tv_usec) / 1000000;
+        time += time_current;
+
+        int checkSumAns = checksumFile("shauli.txt",0);
+        char checkSum[20];
+        sprintf(checkSum,"%d",checkSumAns);
+        //only if the checksum is correct then we print the time
+        if(strcmp(sum_in_string,checkSum)==0){
+            printf("time took %f\n",time_current);
+        }
+        else{
+            printf("%d" , -1);
+        }
+        sum=0;
+        close(cl);
+    }
+}
+
 int main()
 {
-    // TCP();
-    // UDS_SOCK_STREAM();
+    TCP();
+    UDS_SOCK_STREAM();
     UDP();
-    // PIPE();
+    UDS_Dgram_Socket();
+    PIPE();
     return 0;
 }
