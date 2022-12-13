@@ -12,6 +12,11 @@
 #include <strings.h>
 #include <arpa/inet.h>
 #include <signal.h>
+#include <inttypes.h>
+#include <netdb.h>
+
+
+
 
 #define SERVER_PORT 5090
 #define BUFFER_SIZE 1024
@@ -77,7 +82,7 @@ void TCP(){
         int checkSumSize = recv(clientSocket,sum_recieved_string,20,0);
         printf("checksum received  ===>  %s\n",sum_recieved_string);
         
-        
+
 
         int numOfBytes = -1;
         FILE *file = fopen("receiver.txt","w");
@@ -110,11 +115,127 @@ void TCP(){
     // close connection.
     close(listeningSocket);
     fclose(file);
+    sum=0;
 }
+
+
+//from geeksforgeeks https://www.geeksforgeeks.org/c-program-for-file-transfer-using-udp/
+
+#define IP_PROTOCOL 0
+#define PORT_NO 15050
+#define NET_BUF_SIZE 32
+#define sendrecvflag 0
+#define nofile "File Not Found!"
+  
+// function to clear buffer
+void clearBuf(char* b)
+{
+    int i;
+    for (i = 0; i < NET_BUF_SIZE; i++)
+        b[i] = '\0';
+}
+  
+
+// function to receive file
+int recvFile(char* buf, int s)
+{
+    int i;
+    char ch;
+    int flag =0 ;
+    for (i = 0; i < s; i++) {
+        ch = buf[i];
+        if (ch == EOF){
+            flag=1;
+            break;
+        }
+    }
+    checksum(buf, NET_BUF_SIZE);
+    if(flag==1){
+        return 1;
+    }
+    return 0;
+}
+
+void UDP(){
+    //https://www.geeksforgeeks.org/c-program-for-file-transfer-using-udp/
+
+    int sockfd, nBytes;
+    struct sockaddr_in addr_con;
+    int addrlen = sizeof(addr_con);
+    addr_con.sin_family = AF_INET;
+    addr_con.sin_port = htons(PORT_NO);
+    addr_con.sin_addr.s_addr = INADDR_ANY;
+    char net_buf[NET_BUF_SIZE];
+    struct timeval begin, end;
+    // socket()
+    sockfd = socket(AF_INET, SOCK_DGRAM, IP_PROTOCOL);
+    double time = 0.0;
+    gettimeofday(&begin, NULL);
+    if (sockfd < 0)
+        printf("\nfile descriptor not received!!\n");
+    else
+        printf("\nfile descriptor %d received\n", sockfd);
+
+    // bind()
+    if (bind(sockfd, (struct sockaddr*)&addr_con, sizeof(addr_con)) == 0)
+        printf("\nSuccessfully binded!\n");
+    else
+        printf("\nBinding Failed!\n");
+    
+    //receive checksum from sender
+    char sum_recieved_string[20];
+    bzero(sum_recieved_string,sizeof(sum_recieved_string));
+    int checkSumSize = recvfrom(sockfd,sum_recieved_string,20,0,(struct sockaddr*)&addr_con, &addrlen);
+    printf("checksum received  ===>  %s\n",sum_recieved_string);
+
+
+
+    while (nBytes!=0) {
+
+
+        clearBuf(net_buf);
+        nBytes = recvfrom(sockfd, net_buf, NET_BUF_SIZE,
+                            sendrecvflag, (struct sockaddr*)&addr_con,
+                            &addrlen);
+        checksum(net_buf,NET_BUF_SIZE);
+        // process
+    }
+    
+    
+
+    gettimeofday(&end, NULL);
+    double time_current = (double)((end.tv_sec - begin.tv_sec) * 1000000 + end.tv_usec - begin.tv_usec) / 1000000;
+    time += time_current;
+    char sum_in_string [20];
+    printf("checksum calculated  ===>  %d\n",sum);
+    sprintf(sum_in_string,"%d",sum+1);
+    //only if the checksum is correct then we print the 
+    if(strcmp(sum_in_string,sum_recieved_string)==0){
+        printf("time took %f\n",time_current);
+    }
+    else{
+        printf("%d" , -1);
+    }
+    sum=0;
+    close(sockfd);
+
+
+
+}
+
+
+
+
+
+
+
 int main(int argc, char **argv)
 {
     if(strcmp(argv[1],"a")==0){//case for tcp
         TCP();
+    }
+    if(strcmp(argv[1],"c")==0){//case for tcp
+        UDP();
     }
     return 1;
 }
