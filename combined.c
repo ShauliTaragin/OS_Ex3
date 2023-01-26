@@ -5,38 +5,22 @@
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <stdlib.h>
-#include <string.h>
 #include <errno.h>
 #include <signal.h>
 #include <sys/time.h>
 #include <strings.h>
 #include <arpa/inet.h>
 #include <sys/un.h>
-#include <signal.h>
 #include <inttypes.h>
 #include <netdb.h>
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <time.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <string.h>
-#include <errno.h>
 #include <ctype.h>
-#include <signal.h>
 #include <fcntl.h>
 #include <dirent.h>
-#include <sys/types.h>
-#include <sys/types.h>
 #include <sys/wait.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <sys/un.h>
-#include <arpa/inet.h>
-#include <time.h>
+#include <sys/stat.h>
+#include <sys/mman.h> /* mmap() is defined in this header */
+#include <pthread.h>
+#include <semaphore.h>
 
 #define SERVER_PORT 5090
 #define BUFFER_SIZE 1024
@@ -49,6 +33,11 @@
 #define sendrecvflag 0
 #define nofile "File Not Found!"
 static int sum = 0;
+ssize_t bytes = 0;
+char *bufffer;
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
+char *filenameof100mb = "100mb.txt";
 void checksum(char *buffer, int n)
 {
     for (int i = 0; i < n; i++)
@@ -75,7 +64,7 @@ int sendFile(FILE *fp, char *buf, int s)
         return 1;
     }
 
-    char ch, ch2;
+    char ch;
     for (i = 0; i < s; i++)
     {
         ch = fgetc(fp);
@@ -108,7 +97,7 @@ int recvFile(char *buf, int s)
         return 1;
     }
     return 0;
-} 
+}
 
 int checksumFile(char *filepath, int n)
 {
@@ -132,9 +121,11 @@ int checksumFile(char *filepath, int n)
     return sum;
 }
 
-void TCP()
+void Tcp()
 {
-    printf("TCP\n");
+    struct timeval begin, end;
+    gettimeofday(&begin, NULL);
+    printf("\nTCP Start: -> %f\n", ((double)clock()) / CLOCKS_PER_SEC);
     pid_t childpid;
     if ((childpid = fork()) == -1)
     {
@@ -145,7 +136,7 @@ void TCP()
     if (childpid == 0)
     {
         sleep(1);
-        char *fileName = "shauli.txt";
+        char *fileName = "100mb.txt";
         FILE *file;
         char buf[1024];
         socklen_t length;
@@ -173,11 +164,6 @@ void TCP()
             return;
         }
         char sendbuffer[1024];
-        int checkSumAns = checksumFile(fileName, 0);
-        char checkSum[20];
-        sprintf(checkSum, "%d", checkSumAns);
-        send(senderSocket, checkSum, strlen(checkSum), 0);
-        printf("checkSum Calculated ===>   %s\n", checkSum);
         int b;
         int sum = 0;
         do
@@ -194,7 +180,6 @@ void TCP()
     else
     {
         char buffer[1024];
-        // printf("%d\n",checksum("100mb.txt",0));
         //  1. open a new listening socket.
         int listeningSocket = -1;
         listeningSocket = socket(AF_INET, SOCK_STREAM, 0);
@@ -208,9 +193,6 @@ void TCP()
         memset(&serverAddr, 0, sizeof(serverAddr));
         serverAddr.sin_port = htons(SERVER_PORT);
         serverAddr.sin_family = AF_INET;
-        // inet_pton(AF_INET, "127.0.0.1", &(serverAddr.sin_addr));
-        struct timeval begin, end;
-        gettimeofday(&begin, NULL);
         if (bind(listeningSocket, (struct sockaddr *)&serverAddr, sizeof(serverAddr)) < 0)
         {
             printf("Bind() has failed with the error code: %d", errno);
@@ -223,7 +205,6 @@ void TCP()
         }
         struct sockaddr_in clientAddress;
         socklen_t clientAddressLen = sizeof(clientAddress);
-        printf("Waiting for incoming TCP-connections...\n");
         double time = 0.0;
         memset(&clientAddress, 0, sizeof(clientAddress));
         clientAddressLen = sizeof(clientAddress);
@@ -235,50 +216,39 @@ void TCP()
             close(listeningSocket);
             return;
         }
-        // char response[10] = "OK";
-        // write(clientSocket, response, sizeof(response));
-        
-        // receive checksum from sender
-        char sum_recieved_string[20];
-        bzero(sum_recieved_string, sizeof(sum_recieved_string));
-        int checkSumSize = recv(clientSocket, sum_recieved_string, sizeof(sum_recieved_string), 0);
-        printf("checksum received  ===>  %s\n", sum_recieved_string);
+
         int numOfBytes = -1;
-        // FILE *file = fopen("receiver.txt", "w");
         while (numOfBytes != 0)
         {
             // stage 4/7 - recieve the massege from the client.
-            bzero(buffer, sizeof(buffer));
+            bzero(buffer, 1024);
             numOfBytes = recv(clientSocket, buffer, sizeof(buffer), 0);
-            char *buf = buffer;
-            // buffer[100] = '\0';
-            // buffer[101] = '\0';
             checksum(buffer, 1024);
-            // fputs(buffer,file);
         }
-        printf("checksum  calculated  ===>  %d\n", sum);
         gettimeofday(&end, NULL);
         double time_current = (double)((end.tv_sec - begin.tv_sec) * 1000000 + end.tv_usec - begin.tv_usec) / 1000000;
         time += time_current;
         buffer[numOfBytes] = '\0';
-        //only if checksum is equal then print
-        if(sum==checksumFile("shauli.txt",0)){
-            printf("time took %f\n",time);
+        // only if checksum is equal then print
+        printf("TCP End: -> %f\n", ((double)clock()) / CLOCKS_PER_SEC);
+
+        if (sum == checksumFile("100mb.txt", 0))
+        {
+            printf("Time took %f seconds\n", time);
         }
-        else{
-            printf("%d" , -1);
+        else
+        {
+            printf("Differrent: %d\n", -1);
         }
         sleep(1);
         // stage 10 - close connection.
         close(listeningSocket);
-        // fclose(file);
         sum = 0;
-        // exit(0);
     }
 }
-void UDS_SOCK_STREAM()
+void Uds_Sock_Stream()
 {
-    printf("\nUDS_SOCK_STREAM\n");
+    printf("\nUDS_SOCK_STRAM Start: -> %f\n", ((double)clock()) / CLOCKS_PER_SEC);
     pid_t childpid;
     if ((childpid = fork()) == -1)
     {
@@ -290,9 +260,8 @@ void UDS_SOCK_STREAM()
     {
         sleep(1);
         int length;
-        char *fileName = "shauli.txt";
+        char *fileName = "100mb.txt";
         FILE *file;
-        char buf[BUFFER_SIZE];
         int sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
         if (sockfd == -1)
         {
@@ -315,13 +284,12 @@ void UDS_SOCK_STREAM()
             fprintf(stderr, "Error in opening file");
             return;
         }
-        char getReply[10];
         char sendbuffer[BUFFER_SIZE];
         int checkSumAns = checksumFile(fileName, 0);
         char checkSum[10];
         sprintf(checkSum, "%d", checkSumAns);
         send(sockfd, checkSum, 10, 0);
-        printf("checkSum Calculated ===>   %s\n", checkSum);
+        // printf("checkSum Calculated ===>   %s\n", checkSum);
         int b;
         int sum = 0;
         do
@@ -341,7 +309,7 @@ void UDS_SOCK_STREAM()
     }
     else
     {
-        struct sockaddr_un sock_in, sock_out;
+        struct sockaddr_un sock_in;
         char buff[BUFFER_SIZE];
         int listeningSocket = socket(AF_UNIX, SOCK_STREAM, 0);
         if (listeningSocket == -1)
@@ -365,8 +333,6 @@ void UDS_SOCK_STREAM()
             perror("error in listening");
             exit(1);
         }
-        int done, n;
-        printf("Waiting for a connection...\n");
         len_of_sock = sizeof(sock_in);
         int clientSocket = accept(listeningSocket, (struct sockaddr *)&sock_in, (socklen_t *)&len_of_sock);
         if (clientSocket == -1)
@@ -374,10 +340,9 @@ void UDS_SOCK_STREAM()
             perror("error in accepting");
             exit(1);
         }
-        printf("Connected.\n");
         char checkSum[10];
         recv(clientSocket, checkSum, 10, 0);
-        printf("got checksum ===>>> %s\n", checkSum);
+        // printf("got checksum ===> %s\n", checkSum);
         int numOfBytes = -1;
         while (numOfBytes != 0)
         {
@@ -385,16 +350,19 @@ void UDS_SOCK_STREAM()
             numOfBytes = recv(clientSocket, buff, sizeof(buff), 0);
             checksum(buff, BUFFER_SIZE);
         }
-        printf("checksum ====> %d\n", sum);
+        // printf("checksum ====> %d\n", sum);
         gettimeofday(&end, NULL);
         double time_current = (double)((end.tv_sec - begin.tv_sec) * 1000000 + end.tv_usec - begin.tv_usec) / 1000000;
         time += time_current;
-        //only if checksum is equal then print
-        if(sum==checksumFile("shauli.txt",0)){
-            printf("time took %f\n",time_current);
+        // only if checksum is equal then print
+        printf("UDS_SOCK_STRAM End: -> %f\n", ((double)clock()) / CLOCKS_PER_SEC);
+        if (sum == checksumFile("100mb.txt", 0))
+        {
+            printf("Time took %f seconds\n", time_current);
         }
-        else{
-            printf("%d" , -1);
+        else
+        {
+            printf("Different: %d\n", -1);
         }
         close(clientSocket);
         close(listeningSocket);
@@ -403,10 +371,10 @@ void UDS_SOCK_STREAM()
         sum = 0;
     }
 }
-void UDP()
+void Udp()
 {
     // from geeksforgeeks https://www.geeksforgeeks.org/c-program-for-file-transfer-using-udp/
-    printf("\nUDP\n");
+    printf("\nUDP Start: -> %f\n", ((double)clock()) / CLOCKS_PER_SEC);
     pid_t childpid;
     if ((childpid = fork()) == -1)
     {
@@ -417,7 +385,7 @@ void UDP()
     if (childpid == 0)
     {
         sleep(1);
-        int sockfd, nBytes;
+        int sockfd;
         // struct sockaddr_in6 addr_con;
         // int addrlen = sizeof(addr_con);
         // addr_con.sin6_family = AF_INET6;
@@ -430,20 +398,16 @@ void UDP()
         addr_con.sin_addr.s_addr = INADDR_ANY;
         char net_buf[NET_BUF_SIZE];
         FILE *fp;
-        char *fileName = "shauli.txt";
+        char *fileName = "100mb.txt";
         // socket()
         // sockfd = socket(AF_INET6, SOCK_DGRAM, 0);
         sockfd = socket(AF_INET, SOCK_DGRAM, 0);
         if (sockfd < 0)
             printf("\nfile descriptor not received!!\n");
-        else
-            printf("\nfile descriptor %d received\n", sockfd);
-
         // checksum calculation and sending
         int checkSumAns = checksumFile(fileName, 0);
         char checkSum[20];
         sprintf(checkSum, "%d", checkSumAns);
-        printf("checkSum Calculated ===>   %s\n", checkSum);
         int SendByte = sendto(sockfd, checkSum, 20,
                               sendrecvflag, (struct sockaddr *)&addr_con,
                               addrlen);
@@ -481,7 +445,6 @@ void UDP()
         }
         close(sockfd);
         fclose(fp);
-        printf("\n-------------------------------\n");
         exit(0);
     }
     else
@@ -507,18 +470,18 @@ void UDP()
         gettimeofday(&begin, NULL);
         if (sockfd < 0)
             printf("\nfile descriptor not received!!\n");
-        else
-            printf("\nfile descriptor %d received\n", sockfd);
         // bind()
         if (bind(sockfd, (struct sockaddr *)&addr_con, sizeof(addr_con)) == 0)
-            printf("\nSuccessfully binded!\n");
+        {
+            // printf("\nSuccessfully binded!\n");
+        }
         else
             printf("\nBinding Failed!\n");
         // receive checksum from sender
         char sum_recieved_string[20];
         bzero(sum_recieved_string, sizeof(sum_recieved_string));
         int checkSumSize = recvfrom(sockfd, &sum_recieved_string, 20, 0, (struct sockaddr *)&addr_con, (socklen_t *)&addrlen);
-        printf("checksum received  ===>  %s\n", sum_recieved_string);
+        // printf("checksum received  ===>  %s\n", sum_recieved_string);
         while (nBytes != 0)
         {
             clearBuf(net_buf);
@@ -532,28 +495,27 @@ void UDP()
         double time_current = (double)((end.tv_sec - begin.tv_sec) * 1000000 + end.tv_usec - begin.tv_usec) / 1000000;
         time += time_current;
         char sum_in_string[20];
-        printf("checksum calculated  ===>  %d\n", sum);
         sprintf(sum_in_string, "%d", sum + 1);
+        printf("UDP End: -> %f\n", ((double)clock()) / CLOCKS_PER_SEC);
         // only if the checksum is correct then we print the
         if (strcmp(sum_in_string, sum_recieved_string) == 0)
         {
-            printf("time took %f\n", time_current);
+            printf("Time took %f seconds\n", time_current);
         }
         else
         {
-            printf("%d", -1);
+            printf("Different: %d\n", -1);
         }
         sum = 0;
         close(sockfd);
     }
 }
-void PIPE()
+void Pipe()
 {
-    printf("\nPIPE\n");
+    // Used : https://www.geeksforgeeks.org/c-program-demonstrate-fork-and-pipe/
+    printf("\nPipe Start: -> %f\n", ((double)clock()) / CLOCKS_PER_SEC);
     int fd[2], bytes_read, b;
     pid_t childpid;
-    // char string[] = "Hello, world!\n";
-    // char readbuffer[80];
     struct timeval begin, end;
     double time = 0.0;
     gettimeofday(&begin, NULL);
@@ -567,7 +529,7 @@ void PIPE()
     {
         sleep(1);
         char sendbuffer[1000];
-        char *fileName = "shauli.txt";
+        char *fileName = "100mb.txt";
         FILE *file;
         file = fopen(fileName, "r");
         if (file == NULL)
@@ -577,17 +539,13 @@ void PIPE()
         }
         /* Child process closes up input side of pipe */
         close(fd[0]);
-        printf("checkSum received ===> %d\n", checksumFile(fileName, 0));
         do
         {
             bzero(sendbuffer, sizeof(sendbuffer));
             b = fread(sendbuffer, 1, sizeof(sendbuffer), file);
             write(fd[1], sendbuffer, sizeof(sendbuffer));
-            // sum = SendByte + sum;
         } while (!feof(file));
         fclose(file);
-        /* Send "string" through the output side of pipe */
-        // write(fd[1], string, (strlen(string) + 1));
         exit(0);
     }
     else
@@ -601,25 +559,26 @@ void PIPE()
             bzero(readbuffer, sizeof(readbuffer));
             bytes_read = read(fd[0], readbuffer, sizeof(readbuffer));
             checksum(readbuffer, sizeof(readbuffer));
-            // printf("Received string: %s", readbuffer);
         } while (bytes_read != 0);
         gettimeofday(&end, NULL);
         double time_current = (double)((end.tv_sec - begin.tv_sec) * 1000000 + end.tv_usec - begin.tv_usec) / 1000000;
         time += time_current;
-        printf("CheckSum calculated ===>  %d\n", sum);
-        
-        if(sum==checksumFile("shauli.txt",0)){
-            printf("time took %f\n",time_current);
+        printf("Pipe End: -> %f\n", ((double)clock()) / CLOCKS_PER_SEC);
+        if (sum == checksumFile("100mb.txt", 0))
+        {
+            printf("Time took %f seconds\n", time_current);
         }
-        else{
-            printf("%d" , -1);
+        else
+        {
+            printf("Different: %d\n", -1);
         }
-        sum=0;
+        sum = 0;
     }
 }
 
-void UDS_Dgram_Socket(){
-    printf("\nUDS_Dgram_Socket\n");
+void UDS_Dgram_Socket()
+{
+    printf("\nUDS_Dgram_Socket Start: -> %f\n", ((double)clock()) / CLOCKS_PER_SEC);
     pid_t childpid;
     struct timeval begin, end;
     double time = 0.0;
@@ -636,44 +595,42 @@ void UDS_Dgram_Socket(){
         const int buffer_size = 1024;
         char buffer[buffer_size];
         struct sockaddr_un addr;
-        int fd,cl,rc;
-        char* filename = "shauli.txt";
+        int fd, cl, rc;
+        char *filename = "100mb.txt";
 
-        if ((fd = socket(AF_UNIX, SOCK_STREAM, 0)) == -1) {
+        if ((fd = socket(AF_UNIX, SOCK_STREAM, 0)) == -1)
+        {
             perror("socket error");
             exit(-1);
         }
 
         memset(&addr, 0, sizeof(addr));
         addr.sun_family = AF_UNIX;
-        strncpy(addr.sun_path, socket_path, sizeof(addr.sun_path)-1);
+        strncpy(addr.sun_path, socket_path, sizeof(addr.sun_path) - 1);
 
-        if (connect(fd, (struct sockaddr*)&addr, sizeof(addr)) == -1) {
+        if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) == -1)
+        {
             perror("connect error");
             exit(-1);
         }
 
-        //checksum calculation and sending
-        int checkSumAns = checksumFile(filename,0);
+        // checksum calculation and sending
+        int checkSumAns = checksumFile(filename, 0);
         char checkSum[20];
-        sprintf(checkSum,"%d",checkSumAns);
-        printf("checkSum Calculated ===>   %s\n",checkSum);
-        // int SendByte = write(fd, checkSum, 20);
-
-        // if (SendByte < 0) {
-        //     perror("write error");
-        //     exit(-1);
-        // }
-
+        sprintf(checkSum, "%d", checkSumAns);
+        // printf("checkSum Calculated ===>   %s\n", checkSum);
         FILE *file = fopen(filename, "r");
-        if (file == NULL) {
+        if (file == NULL)
+        {
             perror("error opening file");
             exit(-1);
         }
 
-        while ((cl = fread(buffer, 1, buffer_size, file)) > 0) {
+        while ((cl = fread(buffer, 1, buffer_size, file)) > 0)
+        {
             rc = write(fd, buffer, cl);
-            if (rc < 0) {
+            if (rc < 0)
+            {
                 perror("write error");
                 exit(-1);
             }
@@ -683,79 +640,237 @@ void UDS_Dgram_Socket(){
         close(fd);
         exit(0);
     }
-    else{
+    else
+    {
         const char *socket_path = "./socket";
         const int buffer_size = 1024;
         char buffer[buffer_size];
         struct sockaddr_un addr;
-        int fd,cl,rc;
+        int fd, cl, rc;
 
-
-        if ((fd = socket(AF_UNIX, SOCK_STREAM, 0)) == -1) {
+        if ((fd = socket(AF_UNIX, SOCK_STREAM, 0)) == -1)
+        {
             perror("socket error");
             exit(-1);
         }
 
         memset(&addr, 0, sizeof(addr));
         addr.sun_family = AF_UNIX;
-        strncpy(addr.sun_path, socket_path, sizeof(addr.sun_path)-1);
+        strncpy(addr.sun_path, socket_path, sizeof(addr.sun_path) - 1);
 
         unlink(socket_path);
-        if (bind(fd, (struct sockaddr*)&addr, sizeof(addr)) == -1) {
+        if (bind(fd, (struct sockaddr *)&addr, sizeof(addr)) == -1)
+        {
             perror("bind error");
             exit(-1);
         }
 
-        if (listen(fd, 5) == -1) {
+        if (listen(fd, 5) == -1)
+        {
             perror("listen error");
             exit(-1);
         }
 
-        if ((cl = accept(fd, NULL, NULL)) == -1) {
+        if ((cl = accept(fd, NULL, NULL)) == -1)
+        {
             perror("accept error");
         }
-        //receive checksum from sender
-        // char sum_recieved_string[20];
-        // bzero(sum_recieved_string,sizeof(sum_recieved_string));
-        // int checkSumSize = read(fd,sum_recieved_string,20);
-        // if(checkSumSize<1){
-        //     printf("error couldnt read check sum , got %d bytes ", checkSumSize);
-        // }
-        // printf("%s\n",sum_recieved_string);
-        // printf("checksum received  ===>  %s\n",sum_recieved_string);
-
-
-        while ((rc=read(cl, buffer, buffer_size)) > 0) {
-            checksum(buffer,rc);
+        while ((rc = read(cl, buffer, buffer_size)) > 0)
+        {
+            checksum(buffer, rc);
         }
-        char sum_in_string [20];
-        printf("checksum calculated receiver  ===>  %d\n",sum);
-        sprintf(sum_in_string,"%d",sum);
+        char sum_in_string[20];
+        // printf("checksum calculated receiver  ===>  %d\n", sum);
+        sprintf(sum_in_string, "%d", sum);
         gettimeofday(&end, NULL);
         double time_current = (double)((end.tv_sec - begin.tv_sec) * 1000000 + end.tv_usec - begin.tv_usec) / 1000000;
         time += time_current;
-
-        int checkSumAns = checksumFile("shauli.txt",0);
+        int checkSumAns = checksumFile("100mb.txt", 0);
         char checkSum[20];
-        sprintf(checkSum,"%d",checkSumAns);
-        //only if the checksum is correct then we print the time
-        if(strcmp(sum_in_string,checkSum)==0){
-            printf("time took %f\n",time_current);
+        sprintf(checkSum, "%d", checkSumAns);
+        printf("UDS_Dgram_Socket End: -> %f\n", ((double)clock()) / CLOCKS_PER_SEC);
+        // only if the checksum is correct then we print the time
+        if (strcmp(sum_in_string, checkSum) == 0)
+        {
+            printf("Time took %f seconds\n", time_current);
         }
-        else{
-            printf("%d" , -1);
+        else
+        {
+            printf("Different: %d\n", -1);
         }
-        sum=0;
+        sum = 0;
         close(cl);
+        remove("socket");
     }
+}
+void Mmap()
+{
+    // used : https://stackoverflow.com/questions/26259421/use-mmap-in-c-to-write-into-memory
+    printf("\nMMAP Start: -> %f\n", ((double)clock()) / CLOCKS_PER_SEC);
+    struct timeval begin, end;
+    double time = 0.0;
+    gettimeofday(&begin, NULL);
+    int check_sum_to_check = checksumFile("100mb.txt", 0);
+    struct stat statbuf;
+    int fd;
+    char *map; /* mmapped array of int's */
+    fd = open("100mb.txt", O_RDWR);
+    if (fd == -1)
+    {
+        perror("Error opening file for writing");
+        exit(EXIT_FAILURE);
+    }
+    if (fstat(fd, &statbuf) < 0)
+    {
+        printf("fstat error");
+        return;
+    }
+    map = mmap(0, statbuf.st_size, PROT_READ, MAP_SHARED, fd, 0);
+    if (map == MAP_FAILED)
+    {
+        close(fd);
+        perror("Error mmapping the file");
+        exit(EXIT_FAILURE);
+    }
+
+    pid_t childpid;
+    if ((childpid = fork()) == -1)
+    {
+        perror("fork");
+        exit(1);
+    }
+    if (childpid == 0)
+    {
+        char buffer[100];
+        int i = 0;
+        while (i <= statbuf.st_size)
+        {
+            bzero(buffer, sizeof(buffer));
+            for (int j = 0; j < 99; j++)
+            {
+                if (statbuf.st_size < i)
+                {
+                    break;
+                }
+                buffer[j] = map[i++];
+            }
+            checksum(buffer, sizeof(buffer));
+        }
+        gettimeofday(&end, NULL);
+        double time_current = (double)((end.tv_sec - begin.tv_sec) * 1000000 + end.tv_usec - begin.tv_usec) / 1000000;
+        time += time_current;
+        printf("MMAP End: -> %f\n", ((double)clock()) / CLOCKS_PER_SEC);
+        if (sum == check_sum_to_check)
+        {
+            printf("Time took %f seconds\n", time_current);
+        }
+        else
+        {
+            printf("Different: %d\n", -1);
+        }
+        sum = 0;
+        exit(0);
+    }
+    else
+    {
+        waitpid(childpid, NULL, 0);
+    }
+    /* Write to the file int-by-int from the mmap*/
+    if (munmap(map, statbuf.st_size) == -1)
+    {
+        perror("Error un-mmapping the file");
+    }
+    close(fd);
+}
+
+// helper thread function reciever
+void *thread_function2(void *arg)
+{
+
+    pthread_mutex_lock(&mutex);
+    pthread_cond_wait(&cond, &mutex);
+    FILE *file;
+    file = fopen("received.txt", "w");
+    if (file == NULL)
+    {
+        perror("couldnt open file\n");
+    }
+
+    fwrite(bufffer, sizeof(char), bytes, file);
+    (&mutex);
+
+    free(bufffer);
+    fclose(file);
+    int checsum = checksumFile("received.txt", 0);
+}
+// helper thread function sender
+void *thread_function1(void *arg)
+{
+    struct stat stust;
+    FILE *file;
+    file = fopen(filenameof100mb, "r");
+    if (file == NULL)
+    {
+        perror("Couldnt open file\n");
+    }
+    pthread_mutex_lock(&mutex);
+
+    stat(filenameof100mb, &stust);
+    ssize_t size_of_stust = stust.st_size;
+    int checsum = checksumFile(filenameof100mb, 0);
+
+    bufffer = (char *)calloc(size_of_stust * sizeof(char), sizeof(char));
+    bytes = fread(bufffer, sizeof(char), size_of_stust, file);
+    checksum(bufffer, sizeof(bufffer));
+    pthread_cond_signal(&cond);
+    pthread_mutex_unlock(&mutex);
+    fclose(file);
+}
+
+void Shared_Memory_Between_Threads()
+{
+    // https://stackoverflow.com/questions/40181096/c-linux-pthreads-sending-data-from-one-thread-to-another-using-shared-memory-gi
+    // https://www.geeksforgeeks.org/producer-consumer-problem-in-c/
+    struct timeval begin, end;
+
+    // sleep a second to catch up with proccesses
+    sleep(1);
+
+    printf("\nShared_Memory_Between_Threads Start: -> %f\n", ((double)clock()) / CLOCKS_PER_SEC);
+
+    pthread_t thread1, thread2;
+    double time = 0.0;
+    gettimeofday(&begin, NULL);
+    pthread_create(&thread1, NULL, thread_function1, NULL);
+    pthread_create(&thread2, NULL, thread_function2, NULL);
+    // threads are locked until both finish
+    pthread_join(thread1, NULL);
+    pthread_join(thread2, NULL);
+    pthread_mutex_destroy(&mutex);
+    pthread_cond_destroy(&cond);
+    gettimeofday(&end, NULL);
+    double time_current = (double)((end.tv_sec - begin.tv_sec) * 1000000 + end.tv_usec - begin.tv_usec) / 1000000;
+    time += time_current;
+    printf("Shared_Memory_Between_Threads End: -> %f\n", ((double)clock()) / CLOCKS_PER_SEC);
+    if (checksumFile(filenameof100mb, 0) == checksumFile("received.txt", 0))
+    {
+        printf("Time took %f seconds\n", time_current);
+    }
+    else
+    {
+        printf("Different: %d\n", -1);
+    }
+    sum = 0;
 }
 
 int main()
 {
-    TCP();
-    UDS_SOCK_STREAM();
-    UDP();
+    Udp();
+    Tcp();
+    Uds_Sock_Stream();
     UDS_Dgram_Socket();
-    PIPE();
+    Pipe();
+    Mmap();
+    Shared_Memory_Between_Threads();
     return 0;
 }
